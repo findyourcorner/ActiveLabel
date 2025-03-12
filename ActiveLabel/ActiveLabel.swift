@@ -447,22 +447,44 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         guard textStorage.length > 0 else {
             return nil
         }
-        
+
         var correctLocation = location
         correctLocation.y -= heightCorrection
-        let boundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
-        guard boundingRect.contains(correctLocation) else {
+
+        // Get the entire text bounding box
+        let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
+        
+        // Ensure the tap is within the text bounding box
+        guard fullBoundingRect.contains(correctLocation) else {
             return nil
         }
-        
+
+        // Find the glyph index at the tapped location
         let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
-        
+
         for element in activeElements.map({ $0.1 }).joined() {
-            if index >= element.range.location && index <= element.range.location + element.range.length {
+            let glyphRange = element.range
+
+            // Get bounding rect for the specific active element
+            let elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+
+            var expandedRect = elementRect
+
+            // Expand vertically if there's a line above or below
+            if glyphRange.location > 0 {  // If not the first line
+                expandedRect.origin.y -= font.lineHeight * 0.5 // Expand upwards
+                expandedRect.size.height += font.lineHeight * 0.5
+            }
+            if NSMaxRange(glyphRange) < textStorage.length { // If not the last line
+                expandedRect.size.height += font.lineHeight * 0.5 // Expand downwards
+            }
+
+            // Check if the touch is within the expanded tappable area
+            if expandedRect.contains(correctLocation) {
                 return element
             }
         }
-        
+
         return nil
     }
     
