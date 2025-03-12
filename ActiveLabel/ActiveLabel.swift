@@ -476,11 +476,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             if isSingleLine {
                 elementRect = elementRect.insetBy(dx: 0, dy: -15)
             }
-            
-            // Debugging: Print the original and expanded bounds
-            print("Original Rect: \(elementRect)")
-            print("Expanded Rect: \(elementRect)")
-            
+
             // Check if the tap is inside the expanded tappable area
             if elementRect.contains(correctLocation) {
                 return element
