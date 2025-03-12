@@ -190,7 +190,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         guard let text = text, !text.isEmpty else {
             return .zero
         }
-
+        
         textContainer.size = CGSize(width: self.preferredMaxLayoutWidth, height: CGFloat.greatestFiniteMagnitude)
         let size = layoutManager.usedRect(for: textContainer)
         return CGSize(width: ceil(size.width), height: ceil(size.height))
@@ -445,59 +445,49 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     
     fileprivate func element(at location: CGPoint) -> ElementTuple? {
         guard textStorage.length > 0 else {
-                return nil
-            }
-
-            var correctLocation = location
-            correctLocation.y -= heightCorrection  // Adjust for any alignment shifts
-
-            // Get the full bounding rect of all text
-            let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
-
-            guard fullBoundingRect.contains(correctLocation) else {
-                return nil
-            }
-
-            let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
-
-            for element in activeElements.map({ $0.1 }).joined() {
-                let glyphRange = element.range
-
-                // Get bounding rect for the specific active element
-                var elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-
-                // Check the line fragment rect to get the actual line height
-                let lineRange = NSRange(location: glyphRange.location, length: 1) // Get first glyph in element
-                var lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphRange.location, effectiveRange: nil)
-
-                var expandedRect = elementRect
-
-                // Determine expansion limits
-                let hasLineAbove = glyphRange.location > 0
-                let hasLineBelow = NSMaxRange(glyphRange) < textStorage.length
-
-                // Expand upwards only if there's space
-                if hasLineAbove {
-                    expandedRect.origin.y -= lineRect.height * 0.5  // Expand upwards
-                    expandedRect.size.height += lineRect.height * 0.5
-                }
-
-                // Expand downwards only if there's space
-                if hasLineBelow {
-                    expandedRect.size.height += lineRect.height * 0.5 // Expand downwards
-                }
-
-                // Debugging: Print the original and expanded bounds
-                print("Original Rect: \(elementRect)")
-                print("Expanded Rect: \(expandedRect)")
-
-                // Check if the tap is inside the expanded tappable area
-                if expandedRect.contains(correctLocation) {
-                    return element
-                }
-            }
-
             return nil
+        }
+        
+        var correctLocation = location
+        correctLocation.y -= heightCorrection  // Adjust for text alignment
+        
+        // Get the full bounding rect of all text
+        let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
+        
+        guard fullBoundingRect.contains(correctLocation) else {
+            return nil
+        }
+        
+        let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
+        
+        // Calculate if text fits in a single line
+        let textHeight = layoutManager.usedRect(for: textContainer).height
+        let singleLineHeight = font.lineHeight
+        
+        let isSingleLine = textHeight <= singleLineHeight * 1.2  // Allow small padding
+        
+        for element in activeElements.map({ $0.1 }).joined() {
+            let glyphRange = element.range
+            
+            // Get the bounding rect of the specific active element
+            var elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            
+            // Expand tappable area **only if it is a single-line label**
+            if isSingleLine {
+                elementRect = elementRect.insetBy(dx: 0, dy: -15)
+            }
+            
+            // Debugging: Print the original and expanded bounds
+            print("Original Rect: \(elementRect)")
+            print("Expanded Rect: \(elementRect)")
+            
+            // Check if the tap is inside the expanded tappable area
+            if elementRect.contains(correctLocation) {
+                return element
+            }
+        }
+        
+        return nil
     }
     
     
