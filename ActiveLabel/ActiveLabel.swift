@@ -478,13 +478,13 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             
             // Expand only if no active element exists directly above
             if hasLineAbove && elementAbove == nil {
-                expandedRect.origin.y -= font.lineHeight * 0.4 // Expand upwards
-                expandedRect.size.height += font.lineHeight * 0.4
+                expandedRect.origin.y -= font.lineHeight * 2 // Expand upwards
+                expandedRect.size.height += font.lineHeight * 2
             }
             
             // Expand only if no active element exists directly below
             if hasLineBelow && elementBelow == nil {
-                expandedRect.size.height += font.lineHeight * 0.4 // Expand downwards
+                expandedRect.size.height += font.lineHeight * 2 // Expand downwards
             }
             
             // Check if the touch is inside the expanded tappable area
