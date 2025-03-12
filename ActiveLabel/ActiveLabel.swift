@@ -447,44 +447,52 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         guard textStorage.length > 0 else {
             return nil
         }
-
+        
         var correctLocation = location
         correctLocation.y -= heightCorrection
-
-        // Get the entire text bounding box
+        
+        // Get full bounding box of the label text
         let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
         
-        // Ensure the tap is within the text bounding box
         guard fullBoundingRect.contains(correctLocation) else {
             return nil
         }
-
-        // Find the glyph index at the tapped location
+        
         let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
-
+        
         for element in activeElements.map({ $0.1 }).joined() {
             let glyphRange = element.range
-
-            // Get bounding rect for the specific active element
+            
+            // Get bounding rect for the active element
             let elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-
+            
             var expandedRect = elementRect
-
-            // Expand vertically if there's a line above or below
-            if glyphRange.location > 0 {  // If not the first line
-                expandedRect.origin.y -= font.lineHeight * 0.5 // Expand upwards
-                expandedRect.size.height += font.lineHeight * 0.5
+            
+            // Determine if expansion is possible
+            let hasLineAbove = glyphRange.location > 0
+            let hasLineBelow = NSMaxRange(glyphRange) < textStorage.length
+            
+            // Ensure expansion does NOT collide with another active element
+            let elementAbove = activeElements.flatMap { $0.value }.first { $0.range.location < glyphRange.location }
+            let elementBelow = activeElements.flatMap { $0.value }.first { NSMaxRange($0.range) > NSMaxRange(glyphRange) }
+            
+            // Expand only if no active element exists directly above
+            if hasLineAbove && elementAbove == nil {
+                expandedRect.origin.y -= font.lineHeight * 0.4 // Expand upwards
+                expandedRect.size.height += font.lineHeight * 0.4
             }
-            if NSMaxRange(glyphRange) < textStorage.length { // If not the last line
-                expandedRect.size.height += font.lineHeight * 0.5 // Expand downwards
+            
+            // Expand only if no active element exists directly below
+            if hasLineBelow && elementBelow == nil {
+                expandedRect.size.height += font.lineHeight * 0.4 // Expand downwards
             }
-
-            // Check if the touch is within the expanded tappable area
+            
+            // Check if the touch is inside the expanded tappable area
             if expandedRect.contains(correctLocation) {
                 return element
             }
         }
-
+        
         return nil
     }
     
