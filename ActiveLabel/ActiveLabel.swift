@@ -445,55 +445,59 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
     
     fileprivate func element(at location: CGPoint) -> ElementTuple? {
         guard textStorage.length > 0 else {
+                return nil
+            }
+
+            var correctLocation = location
+            correctLocation.y -= heightCorrection  // Adjust for any alignment shifts
+
+            // Get the full bounding rect of all text
+            let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
+
+            guard fullBoundingRect.contains(correctLocation) else {
+                return nil
+            }
+
+            let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
+
+            for element in activeElements.map({ $0.1 }).joined() {
+                let glyphRange = element.range
+
+                // Get bounding rect for the specific active element
+                var elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+
+                // Check the line fragment rect to get the actual line height
+                let lineRange = NSRange(location: glyphRange.location, length: 1) // Get first glyph in element
+                var lineRect = layoutManager.lineFragmentRect(forGlyphAt: glyphRange.location, effectiveRange: nil)
+
+                var expandedRect = elementRect
+
+                // Determine expansion limits
+                let hasLineAbove = glyphRange.location > 0
+                let hasLineBelow = NSMaxRange(glyphRange) < textStorage.length
+
+                // Expand upwards only if there's space
+                if hasLineAbove {
+                    expandedRect.origin.y -= lineRect.height * 0.5  // Expand upwards
+                    expandedRect.size.height += lineRect.height * 0.5
+                }
+
+                // Expand downwards only if there's space
+                if hasLineBelow {
+                    expandedRect.size.height += lineRect.height * 0.5 // Expand downwards
+                }
+
+                // Debugging: Print the original and expanded bounds
+                print("Original Rect: \(elementRect)")
+                print("Expanded Rect: \(expandedRect)")
+
+                // Check if the tap is inside the expanded tappable area
+                if expandedRect.contains(correctLocation) {
+                    return element
+                }
+            }
+
             return nil
-        }
-        
-        var correctLocation = location
-        correctLocation.y -= heightCorrection
-        
-        // Get full bounding box of the label text
-        let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
-        
-        guard fullBoundingRect.contains(correctLocation) else {
-            return nil
-        }
-        
-        let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
-        
-        for element in activeElements.map({ $0.1 }).joined() {
-            let glyphRange = element.range
-            
-            // Get bounding rect for the active element
-            let elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-            
-            var expandedRect = elementRect
-            
-            // Determine if expansion is possible
-            let hasLineAbove = glyphRange.location > 0
-            let hasLineBelow = NSMaxRange(glyphRange) < textStorage.length
-            
-            // Ensure expansion does NOT collide with another active element
-            let elementAbove = activeElements.flatMap { $0.value }.first { $0.range.location < glyphRange.location }
-            let elementBelow = activeElements.flatMap { $0.value }.first { NSMaxRange($0.range) > NSMaxRange(glyphRange) }
-            
-            // Expand only if no active element exists directly above
-            if hasLineAbove && elementAbove == nil {
-                expandedRect.origin.y -= font.lineHeight * 2 // Expand upwards
-                expandedRect.size.height += font.lineHeight * 2
-            }
-            
-            // Expand only if no active element exists directly below
-            if hasLineBelow && elementBelow == nil {
-                expandedRect.size.height += font.lineHeight * 2 // Expand downwards
-            }
-            
-            // Check if the touch is inside the expanded tappable area
-            if expandedRect.contains(correctLocation) {
-                return element
-            }
-        }
-        
-        return nil
     }
     
     
