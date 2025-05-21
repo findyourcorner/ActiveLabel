@@ -289,7 +289,12 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         if parseText {
             clearActiveElements()
             let newString = parseTextAndExtractActiveElements(mutAttrString)
-            mutAttrString.mutableString.setString(newString)
+            // Create new mutable string while preserving attributes
+            let preservedAttrString = NSMutableAttributedString(string: newString)
+            mutAttrString.enumerateAttributes(in: NSRange(location: 0, length: min(mutAttrString.length, newString.count)), options: []) { (attrs, range, _) in
+                preservedAttrString.addAttributes(attrs, range: range)
+            }
+            mutAttrString.setAttributedString(preservedAttrString)
         }
         
         addLinkAttribute(mutAttrString)
