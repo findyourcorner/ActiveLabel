@@ -99,7 +99,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             mentionTapHandler = nil
         case .url:
             urlTapHandler = nil
-        case .custom, .customRegex:
+        case .custom:
             customTapHandlers[type] = nil
         case .email:
             emailTapHandler = nil
@@ -289,18 +289,19 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         if parseText {
             clearActiveElements()
             let newString = parseTextAndExtractActiveElements(mutAttrString)
-            
-            // Only update the string if it has changed (e.g., URL trimming occurred)
-            if newString != mutAttrString.string {
-                // Create new attributed string with modified text, preserving base attributes
-                let baseAttributes = mutAttrString.attributes(at: 0, effectiveRange: nil)
-                let newAttrString = NSMutableAttributedString(string: newString, attributes: baseAttributes)
-                mutAttrString.setAttributedString(newAttrString)
+            // Create new mutable string while preserving attributes
+            let preservedAttrString = NSMutableAttributedString(string: newString)
+            mutAttrString.enumerateAttributes(in: NSRange(location: 0, length: min(mutAttrString.length, newString.count)), options: []) { (attrs, range, _) in
+                preservedAttrString.addAttributes(attrs, range: range)
             }
+            mutAttrString.setAttributedString(preservedAttrString)
         }
         
         addLinkAttribute(mutAttrString)
         textStorage.setAttributedString(mutAttrString)
+        _customizing = true
+        text = mutAttrString.string
+        _customizing = false
         setNeedsDisplay()
     }
     
@@ -335,7 +336,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             case .mention: attributes[NSAttributedString.Key.foregroundColor] = mentionColor
             case .hashtag: attributes[NSAttributedString.Key.foregroundColor] = hashtagColor
             case .url: attributes[NSAttributedString.Key.foregroundColor] = URLColor
-            case .custom, .customRegex: attributes[NSAttributedString.Key.foregroundColor] = customColor[type] ?? defaultCustomColor
+            case .custom: attributes[NSAttributedString.Key.foregroundColor] = customColor[type] ?? defaultCustomColor
             case .email: attributes[NSAttributedString.Key.foregroundColor] = URLColor
             }
             
@@ -348,11 +349,6 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             }
             
             for element in elements {
-                // Ensure the range is valid for the attributed string
-                guard element.range.location >= 0 && 
-                      NSMaxRange(element.range) <= mutAttrString.length else {
-                    continue
-                }
                 mutAttrString.setAttributes(attributes, range: element.range)
             }
         }
@@ -421,7 +417,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             case .mention: selectedColor = mentionSelectedColor ?? mentionColor
             case .hashtag: selectedColor = hashtagSelectedColor ?? hashtagColor
             case .url: selectedColor = URLSelectedColor ?? URLColor
-            case .custom, .customRegex:
+            case .custom:
                 let possibleSelectedColor = customSelectedColor[selectedElement.type] ?? customColor[selectedElement.type]
                 selectedColor = possibleSelectedColor ?? defaultCustomColor
             case .email: selectedColor = URLSelectedColor ?? URLColor
@@ -433,7 +429,7 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
             case .mention: unselectedColor = mentionColor
             case .hashtag: unselectedColor = hashtagColor
             case .url: unselectedColor = URLColor
-            case .custom, .customRegex: unselectedColor = customColor[selectedElement.type] ?? defaultCustomColor
+            case .custom: unselectedColor = customColor[selectedElement.type] ?? defaultCustomColor
             case .email: unselectedColor = URLColor
             }
             attributes[NSAttributedString.Key.foregroundColor] = unselectedColor
@@ -460,47 +456,33 @@ typealias ElementTuple = (range: NSRange, element: ActiveElement, type: ActiveTy
         var correctLocation = location
         correctLocation.y -= heightCorrection  // Adjust for text alignment
         
-        // Calculate if text fits in a single line for expanded tappable area
+        // Get the full bounding rect of all text
+        let fullBoundingRect = layoutManager.boundingRect(forGlyphRange: NSRange(location: 0, length: textStorage.length), in: textContainer)
+        
+        guard fullBoundingRect.contains(correctLocation) else {
+            return nil
+        }
+        
+        let index = layoutManager.glyphIndex(for: correctLocation, in: textContainer)
+        
+        // Calculate if text fits in a single line
         let textHeight = layoutManager.usedRect(for: textContainer).height
         let singleLineHeight = font.lineHeight
+        
         let isSingleLine = textHeight <= singleLineHeight * 1.2  // Allow small padding
         
-        // Check each active element using bounding rect approach
         for element in activeElements.map({ $0.1 }).joined() {
-            let elementRange = element.range
+            let glyphRange = element.range
             
-            // Ensure the range is valid for the current text storage
-            guard elementRange.location >= 0 && 
-                  NSMaxRange(elementRange) <= textStorage.length else {
-                continue
-            }
-            
-            // Additional safety check: ensure range is valid for character-to-glyph conversion
-            guard elementRange.location < textStorage.length else {
-                continue
-            }
-            
-            // Convert character range to glyph range and get bounding rect
-            let glyphRange = layoutManager.glyphRange(forCharacterRange: elementRange, actualCharacterRange: nil)
-            
-            // Ensure glyph range is valid
-            guard glyphRange.location != NSNotFound && glyphRange.length > 0 else {
-                continue
-            }
-            
+            // Get the bounding rect of the specific active element
             var elementRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
             
-            // Skip elements with invalid rects
-            guard !elementRect.isEmpty && elementRect.width > 0 && elementRect.height > 0 else {
-                continue
-            }
-            
-            // Expand tappable area for single-line labels
+            // Expand tappable area **only if it is a single-line label**
             if isSingleLine {
                 elementRect = elementRect.insetBy(dx: 0, dy: -15)
             }
-            
-            // Check if the touch location is within this element's rect
+
+            // Check if the tap is inside the expanded tappable area
             if elementRect.contains(correctLocation) {
                 return element
             }
