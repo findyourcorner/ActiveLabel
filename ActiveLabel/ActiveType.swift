@@ -39,7 +39,7 @@ public enum ActiveType {
         case .hashtag: return RegexParser.hashtagPattern
         case .url: return RegexParser.urlPattern
         case .email: return RegexParser.emailPattern
-        case .custom(let regex): return regex
+        case .custom(let pattern): return NSRegularExpression.escapedPattern(for: pattern)
         }
     }
 }
