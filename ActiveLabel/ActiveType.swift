@@ -21,7 +21,7 @@ enum ActiveElement {
         case .hashtag: return hashtag(text)
         case .email: return email(text)
         case .url: return url(original: text, trimmed: text)
-        case .custom: return custom(text)
+        case .custom, .customRegex: return custom(text)
         }
     }
 }
@@ -32,6 +32,7 @@ public enum ActiveType {
     case url
     case email
     case custom(pattern: String)
+    case customRegex(pattern: String)
     
     var pattern: String {
         switch self {
@@ -39,7 +40,8 @@ public enum ActiveType {
         case .hashtag: return RegexParser.hashtagPattern
         case .url: return RegexParser.urlPattern
         case .email: return RegexParser.emailPattern
-        case .custom(let regex): return regex
+        case .custom(let pattern): return NSRegularExpression.escapedPattern(for: pattern)
+        case .customRegex(let regex): return regex
         }
     }
 }
@@ -51,7 +53,8 @@ extension ActiveType: Hashable, Equatable {
         case .hashtag: hasher.combine(-2)
         case .url: hasher.combine(-3)
         case .email: hasher.combine(-4)
-        case .custom(let regex): hasher.combine(regex)
+        case .custom(let pattern): hasher.combine(pattern)
+        case .customRegex(let regex): hasher.combine(regex)
         }
     }
 }
@@ -63,6 +66,7 @@ public func ==(lhs: ActiveType, rhs: ActiveType) -> Bool {
     case (.url, .url): return true
     case (.email, .email): return true
     case (.custom(let pattern1), .custom(let pattern2)): return pattern1 == pattern2
+    case (.customRegex(let regex1), .customRegex(let regex2)): return regex1 == regex2
     default: return false
     }
 }
